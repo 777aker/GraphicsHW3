@@ -68,14 +68,139 @@ void fence();
 void fence_line();
 void fence_post();
 void picket();
+// ok, finally, lets draw a tree
+void tree();
+struct point {
+	double x;
+	double y;
+	double z;
+};
+void branch(struct point base[4], double dy, bool first, double dx, double dz, int iterations);
+// I'mma need vertex for this
+static void Vertex(double theta, double dis);
+static void Vertexflat(double theta, double dis);
+// ok, I want random trees but if we did srand everytime
+// we'd get a totally wild tree each update, so
+// populate global randoms at beginning then
+// pull from here for consitent random value
+// value is from 0-99
+double randoms[50];
 
 // important variablessszzzz
-int th = 0; // um, view angle stuff
-int ph = 0; // the other view angle rotation
+int th = 35; // um, view angle stuff
+int ph = 35; // the other view angle rotation
 double dim = 10.0; // size of world / distance of camera?
 double asp = 1; // aspect ratio
 double ground = -3; // I want the scene to start more towards
 // the bottom of the screen so move everything down some
+
+// ok, everything else is great and works fine
+// now lets just focus on a tree and once this
+// is done submit it
+//-----------------------------
+
+void branch(struct point base[4], double dy, bool first, double dx, double dz, int iterations) {
+	int i;
+	Color(79, 28, 3);
+	struct point newbase[4];
+	glBegin(GL_QUAD_STRIP);
+	for(i = 4; i >= 0; i--) {
+		glVertex3f(base[i%4].x, base[i%4].y, base[i%4].z);
+		newbase[i%4].x = (base[i%4].x+dx);
+		newbase[i%4].y = (base[i%4].y+dy);
+		newbase[i%4].z = (base[i%4].z+dz);
+		glVertex3f(newbase[i%4].x, newbase[i%4].y, newbase[i%4].z);
+	}
+	glEnd();
+
+	glColor3f(0, 0, 0);
+	glBegin(GL_LINES);
+	for(i = 0; i <= 4; i++) {
+		glVertex3f(base[i%4].x, base[i%4].y, base[i%4].z);
+		glVertex3f(newbase[i%4].x, newbase[i%4].y, newbase[i%4].z);
+	}
+	glEnd();
+	iterations--;
+	if(iterations > 0) {
+		int negx, negz, negx2, negz2;
+		negx = negz = negx2 = negz2 = 1;
+		if(randoms[(iterations*2)%100] < 50)
+			negx = -1;
+		if(randoms[(iterations*6+80)%100] < 50)
+			negz = -1;
+		if(randoms[((iterations+200)/6)%100] < 50)
+			negx2 = -1;
+		if(randoms[(iterations*28)%100] < 50)
+			negz2 = -1;
+		branch(newbase, dy/1.5, first, negx*randoms[(iterations*4-3)%100]/25, negz*randoms[(iterations*25/14-8)%100]/25, iterations);
+		branch(newbase, dy/1.5, !first, negx2*randoms[(iterations+62)%100]/25, negz2*randoms[((iterations+60)/3)%100]/25, iterations);
+	}
+}
+
+void tree() {
+	glPushMatrix();
+
+	glTranslatef(0, ground, 0);
+	glScalef(.5, .5, .5);
+	// I guess we'll start with the trunk first
+	Color(79, 28, 3);
+	int i;
+	glBegin(GL_POLYGON);
+	for(i = 360; i >= 0; i -= 60)
+		Vertex(i, 0);
+	glEnd();
+	glBegin(GL_QUAD_STRIP);
+	for(i = 360; i >= 0; i -= 60) {
+		Vertexflat(i, 0);
+		Vertexflat(i, 10);
+	}
+	glEnd();
+	// now some branches?
+	// how should I do this?
+	struct point base[4];
+	for(i = 0; i < 4; i++) {
+		base[i].x = Sin(i*60);
+		base[i].y = 10;
+		base[i].z = Cos(i*60);
+	}
+	branch(base, 5, 1, 2, 2, 8);
+	for(i = 3; i < 7; i++) {
+		base[i%4].x = Sin(i*60);
+		base[i%4].y = 10;
+		base[i%4].z = Cos(i*60);
+	}
+	branch(base, 5, 0, -1, -1.5, 8);
+
+	// lines
+	Color(0, 0, 0);
+	glBegin(GL_LINES);
+	for(i = 0; i <= 360; i += 60) {
+		Vertexflat(i, 0);
+		Vertexflat(i, 10);
+	}
+	glEnd();
+	glTranslatef(0,5,0);
+	/*
+	glBegin(GL_QUAD_STRIP);
+	for(i = 360; i >= 0; i -= 60) {
+		Vertex(i, 0);
+		Vertex(i, 60);
+	}
+	glEnd();
+	*/
+	
+	glPopMatrix();
+}
+
+static void Vertexflat(double thet, double height) {
+	glVertex3f(Sin(thet), height, Cos(thet));
+}
+
+static void Vertex(double thet, double dis) {
+	glVertex3f(Sin(thet)*Cos(dis), Sin(dis), Cos(thet)*Cos(dis));
+}
+
+//-----------------------------
 
 // displays the scene
 void display() {
@@ -90,6 +215,13 @@ void display() {
 	// rotate the world
 	glRotatef(ph, 1, 0, 0);
 	glRotatef(th, 0, 1, 0);
+
+	glDisable(GL_CULL_FACE);
+	// draw the grass
+	// it's flat so don't do face
+	// culling on it
+	grass();
+	glEnable(GL_CULL_FACE);
 
 	// draw, the grouuunndddd
 	// also, if you change the starting dim
@@ -107,8 +239,12 @@ void display() {
 	fence();
 	picket();
 
-	// draw the grass
-	grass();
+	// I probably spent way too long on decorations for the main thing
+	// but whatever, makes it much more dramatic and cool
+	// so uh, finally, the main subject of this composition
+	// a tree
+	tree();
+
 	ErrCheck("display");
 	glFlush();
 	glutSwapBuffers();
@@ -128,6 +264,16 @@ void fence() {
 	fence_line();
 	glTranslatef(18, 0, 18);
 	fence_line();
+	/*
+	glTranslatef(dim, ground, dim-1);
+	fence_line();
+	glTranslatef(dim*2-2, 0, -dim*2+2);
+	fence_line();
+	glTranslatef(-1, 0, -1);
+	glRotatef(90, 0, 1, 0);
+	fence_line();
+	glTranslatef(dim*2-2, 0, dim*2-2);
+	fence_line();*/
 
 	glDisable(GL_CULL_FACE);
 	glPopMatrix();
@@ -377,6 +523,7 @@ void reshape(int width, int height) {
 // um, outer rim thingy...idk what these are called
 // wow, this is getting really long
 // I'mma move it to the bottom
+// there was definitely a better way to do this
 void picket() {
 	glPushMatrix();
 	glEnable(GL_CULL_FACE);
@@ -470,7 +617,35 @@ void picket() {
 
 	// top of the fence
 
-	
+	glVertex3f(-9, 1.5, 9);
+	glVertex3f(-9.5, 1.5, 9.5);
+	glVertex3f(9.5, 1.5, 9.5);
+	glVertex3f(9, 1.5, 9);
+
+	glVertex3f(-9, 2.5, 9);
+	glVertex3f(-9.5, 2.5, 9.5);
+	glVertex3f(9.5, 2.5, 9.5);
+	glVertex3f(9, 2.5, 9);
+
+	glVertex3f(-9, 1.5, -9);
+	glVertex3f(-9.5, 1.5, -9.5);
+	glVertex3f(-9.5, 1.5, 9.5);
+	glVertex3f(-9, 1.5, 9);
+
+	glVertex3f(-9, 2.5, -9);
+	glVertex3f(-9.5, 2.5, -9.5);
+	glVertex3f(-9.5, 2.5, 9.5);
+	glVertex3f(-9, 2.5, 9);
+
+	glVertex3f(9, 1.5, -9);
+	glVertex3f(9.5, 1.5, -9.5);
+	glVertex3f(-9.5, 1.5, -9.5);
+	glVertex3f(-9, 1.5, -9);
+
+	glVertex3f(9, 2.5, -9);
+	glVertex3f(9.5, 2.5, -9.5);
+	glVertex3f(-9.5, 2.5, -9.5);
+	glVertex3f(-9, 2.5, -9);
 
 	glVertex3f(9, 2.5, 9);
 	glVertex3f(9.5, 2.5, 9.5);
@@ -484,9 +659,150 @@ void picket() {
 
 	// bottom of the fence
 
-
+	glVertex3f(9, 1, 9);
+	glVertex3f(9.5, 1, 9.5);
+	glVertex3f(-9.5, 1, 9.5);
+	glVertex3f(-9, 1, 9);
+	
+	glVertex3f(9, 2, 9);
+	glVertex3f(9.5, 2, 9.5);
+	glVertex3f(-9.5, 2, 9.5);
+	glVertex3f(-9, 2, 9);
+	
+	glVertex3f(-9, 1, 9);
+	glVertex3f(-9.5, 1, 9.5);
+	glVertex3f(-9.5, 1, -9.5);
+	glVertex3f(-9, 1, -9);
+	
+	glVertex3f(-9, 2, 9);
+	glVertex3f(-9.5, 2, 9.5);
+	glVertex3f(-9.5, 2, -9.5);
+	glVertex3f(-9, 2, -9);
+	
+	glVertex3f(-9, 1, -9);
+	glVertex3f(-9.5, 1, -9.5);
+	glVertex3f(9.5, 1, -9.5);
+	glVertex3f(9, 1, -9);
+	
+	glVertex3f(-9, 2, -9);
+	glVertex3f(-9.5, 2, -9.5);
+	glVertex3f(9.5, 2, -9.5);
+	glVertex3f(9, 2, -9);
+	
+	glVertex3f(9, 2, -9);
+	glVertex3f(9.5, 2, -9.5);
+	glVertex3f(9.5, 2, 9.5);
+	glVertex3f(9, 2, 9);
+	
+	glVertex3f(9, 1, -9);
+	glVertex3f(9.5, 1, -9.5);
+	glVertex3f(9.5, 1, 9.5);
+	glVertex3f(9, 1, 9);
 
 	glEnd();
+
+	glLineWidth(3);
+	glColor3f(0, 0, 0);
+	glBegin(GL_LINE_STRIP);
+
+	glVertex3f(9.5, 2.5, 9.5);
+	glVertex3f(9.5, 2.5, -9.5);
+	glVertex3f(-9.5, 2.5, -9.5);
+	glVertex3f(-9.5, 2.5, 9.5);
+	glVertex3f(9.5, 2.5, 9.5);
+
+	glEnd();
+	glBegin(GL_LINE_STRIP);
+
+	glVertex3f(9, 2.5, 9);
+	glVertex3f(9, 2.5, -9);
+	glVertex3f(-9, 2.5, -9);
+	glVertex3f(-9, 2.5, 9);
+	glVertex3f(9, 2.5, 9);
+
+	glEnd();
+	glBegin(GL_LINE_STRIP);
+
+	glVertex3f(9.5, 1.5, 9.5);
+	glVertex3f(9.5, 1.5, -9.5);
+	glVertex3f(-9.5, 1.5, -9.5);
+	glVertex3f(-9.5, 1.5, 9.5);
+	glVertex3f(9.5, 1.5, 9.5);
+
+	glEnd();
+	glBegin(GL_LINE_STRIP);
+
+	glVertex3f(9, 1.5, 9);
+	glVertex3f(9, 1.5, -9);
+	glVertex3f(-9, 1.5, -9);
+	glVertex3f(-9, 1.5, 9);
+	glVertex3f(9, 1.5, 9);
+
+	glEnd();
+	glBegin(GL_LINE_STRIP);
+
+	glVertex3f(9.5, 2, 9.5);
+	glVertex3f(9.5, 2, -9.5);
+	glVertex3f(-9.5, 2, -9.5);
+	glVertex3f(-9.5, 2, 9.5);
+	glVertex3f(9.5, 2, 9.5);
+
+	glEnd();
+	glBegin(GL_LINE_STRIP);
+
+	glVertex3f(9, 2, 9);
+	glVertex3f(9, 2, -9);
+	glVertex3f(-9, 2, -9);
+	glVertex3f(-9, 2, 9);
+	glVertex3f(9, 2, 9);
+
+	glEnd();
+	glBegin(GL_LINE_STRIP);
+
+	glVertex3f(9.5, 1, 9.5);
+	glVertex3f(9.5, 1, -9.5);
+	glVertex3f(-9.5, 1, -9.5);
+	glVertex3f(-9.5, 1, 9.5);
+	glVertex3f(9.5, 1, 9.5);
+
+	glEnd();
+	glBegin(GL_LINE_STRIP);
+
+	glVertex3f(9, 1, 9);
+	glVertex3f(9, 1, -9);
+	glVertex3f(-9, 1, -9);
+	glVertex3f(-9, 1, 9);
+	glVertex3f(9, 1, 9);
+
+	glEnd();
+	glBegin(GL_LINES);
+
+	glVertex3f(9.5, 2.5, 9.5);
+	glVertex3f(9.5, 2, 9.5);
+
+	glVertex3f(9.5, 1.5, 9.5);
+	glVertex3f(9.5, 1, 9.5);
+
+	glVertex3f(-9.5, 2.5, 9.5);
+	glVertex3f(-9.5, 2, 9.5);
+
+	glVertex3f(-9.5, 1.5, 9.5);
+	glVertex3f(-9.5, 1, 9.5);
+
+	glVertex3f(-9.5, 2.5, -9.5);
+	glVertex3f(-9.5, 2, -9.5);
+
+	glVertex3f(-9.5, 1.5, -9.5);
+	glVertex3f(-9.5, 1, -9.5);
+
+	glVertex3f(9.5, 2.5, -9.5);
+	glVertex3f(9.5, 2, -9.5);
+
+	glVertex3f(9.5, 1.5, -9.5);
+	glVertex3f(9.5, 1, -9.5);
+
+	glEnd();
+
 	glPopMatrix();
 }
 
@@ -499,6 +815,11 @@ int main(int argc, char* argv[]) {
 	srand((unsigned) time(&t));
 	// initialize grass
 	save_grass();
+	// populate our global randoms
+	int i;
+	for(i = 0; i < 50; i++) {
+		randoms[i] = rand()%100;
+	}
 	// initialize GLUT
 	glutInit(&argc, argv);
 	// window size
