@@ -5,7 +5,8 @@
 	Base code copied and modified from ex8.
 
 	Key bindings:
-	WASD move through space
+	Space: rerandomize everything
+	Pageup/Pagedown change dim
 	Arrow keys change view
 	0 Resets view
 	ESC Exit
@@ -34,6 +35,7 @@
 #define RES 1
 #endif
 #include <time.h>
+//#include <math.h>
 
 // Cosine and Sine in degrees
 // copying this from ex8 bc it's pretty useful
@@ -69,16 +71,19 @@ void fence_line();
 void fence_post();
 void picket();
 // ok, finally, lets draw a tree
-void tree();
+void tree(int firstrand);
 struct point {
 	double x;
 	double y;
 	double z;
 };
-void branch(struct point base[4], double dy, bool first, double dx, double dz, int iterations);
+// I explain this later
+void branch(struct point base[4], double dy, int first, double dx, double dz, int iterations);
 // I'mma need vertex for this
 static void Vertex(double theta, double dis);
 static void Vertexflat(double theta, double dis);
+// I want an icosahedron for leaves so I'm copying this from ex8
+static void icosahedron1(float x, float y, float z, float s, float th);
 // ok, I want random trees but if we did srand everytime
 // we'd get a totally wild tree each update, so
 // populate global randoms at beginning then
@@ -89,30 +94,52 @@ double randoms[50];
 // important variablessszzzz
 int th = 35; // um, view angle stuff
 int ph = 35; // the other view angle rotation
-double dim = 10.0; // size of world / distance of camera?
+double dim = 50.0; // size of world / distance of camera?
 double asp = 1; // aspect ratio
 double ground = -3; // I want the scene to start more towards
 // the bottom of the screen so move everything down some
+// this is an int that will color our middle tree
+// different than the rest
+int maintree = 1;
 
 // ok, everything else is great and works fine
 // now lets just focus on a tree and once this
 // is done submit it
+// wow, if only that's how it actually worked out
 //-----------------------------
 
-void branch(struct point base[4], double dy, bool first, double dx, double dz, int iterations) {
+// I guess I should explain this coplicated mess
+// parameters: base ie where it's connected to
+// dy: is change in height, how long the branch is upward
+// first: is a variable to add randomness from side to side, ie
+// iterations is what usually adds randomness but those will be
+// the same for the branches called at the same point
+// it'll make more sense later?
+// dx, dz: are the change in branch position, adds some randomness
+// iterations: how many more times we call this function
+void branch(struct point base[4], double dy, int first, double dx, double dz, int iterations) {
 	int i;
+	// first set the color
 	Color(79, 28, 3);
+	// make a new base that will be where this branch left off
+	// to pass to the next branches
 	struct point newbase[4];
+	// draw the branch
 	glBegin(GL_QUAD_STRIP);
+	// loop through and draw our quads
 	for(i = 4; i >= 0; i--) {
 		glVertex3f(base[i%4].x, base[i%4].y, base[i%4].z);
+		
+		// the top of this branch which will be our next base
 		newbase[i%4].x = (base[i%4].x+dx);
-		newbase[i%4].y = (base[i%4].y+dy);
+		newbase[i%4].y = (base[i%4].y+dy+(dy*randoms[(int)(dy*first)%100]/50.0)/2);
 		newbase[i%4].z = (base[i%4].z+dz);
+
 		glVertex3f(newbase[i%4].x, newbase[i%4].y, newbase[i%4].z);
 	}
 	glEnd();
 
+	// draw some nice lines bc otherwise 3D sucks without lighting
 	glColor3f(0, 0, 0);
 	glBegin(GL_LINES);
 	for(i = 0; i <= 4; i++) {
@@ -120,24 +147,49 @@ void branch(struct point base[4], double dy, bool first, double dx, double dz, i
 		glVertex3f(newbase[i%4].x, newbase[i%4].y, newbase[i%4].z);
 	}
 	glEnd();
+	// so, decrease iterations because this stops once there are no
+	// more iterations
 	iterations--;
 	if(iterations > 0) {
+		// then, we randomize the negative values
 		int negx, negz, negx2, negz2;
 		negx = negz = negx2 = negz2 = 1;
-		if(randoms[(iterations*2)%100] < 50)
+		if(randoms[(iterations*first*2)%100] < 50)
 			negx = -1;
-		if(randoms[(iterations*6+80)%100] < 50)
+		if(randoms[(iterations*first*6+80)%100] < 50)
 			negz = -1;
-		if(randoms[((iterations+200)/6)%100] < 50)
+		if(randoms[((iterations*first+200)/6)%100] < 50)
 			negx2 = -1;
-		if(randoms[(iterations*28)%100] < 50)
+		if(randoms[(iterations*first*28)%100] < 50)
 			negz2 = -1;
-		branch(newbase, dy/1.5, first, negx*randoms[(iterations*4-3)%100]/25, negz*randoms[(iterations*25/14-8)%100]/25, iterations);
-		branch(newbase, dy/1.5, !first, negx2*randoms[(iterations+62)%100]/25, negz2*randoms[((iterations+60)/3)%100]/25, iterations);
+		//printf("%d, %d, %d, %d\n", negx, negz, negx2, negz2);
+		// then we call our next branch and we randomize some values
+		// all this first and iterations nonsense math rather than
+		// just srand is so that it's consistent across display calls
+		// if we just did srand branches would move all over the place 
+		// which would look insane
+		// there is also a lot of really cheaky random math here for the
+		// tree to come out nicely
+		branch(newbase, dy/1.01, (int)randoms[(first+1)%100], negx*randoms[(iterations*first*4-3)%100]/10.0*pow(iterations, .5), negz*randoms[(iterations*first*25/14-8)%100]/10.0*pow(iterations, .5), iterations);
+		branch(newbase, dy/1.01, (int)randoms[first%100], negx2*randoms[(iterations*first+62)%100]/10.0*pow(iterations, .5), negz2*randoms[((iterations*first+60)/3)%100]/10.0*pow(iterations, .5), iterations);
+	} else {
+		// it's the end of our tree so lets draw some leaves
+		int negx, negz, negy;
+		negx = negz = negy = 1;
+		if(randoms[(first*2)%100] < 50)
+			negx = -1;
+		if(randoms[(first*6+80)%100] < 50)
+			negz = -1;
+		if(randoms[((first+200)/6)%100] < 50)
+			negy = -1;
+		icosahedron1(newbase[0].x+negx*(randoms[first%100]/50), newbase[0].y+negy*(randoms[first*2%100]/50), newbase[0].z+negz*(randoms[first*3%100]/50), 
+			5+randoms[first%100]/20, (int)(randoms[first%100]*10)%360);
+
 	}
 }
 
-void tree() {
+// draw a treeee
+void tree(int firstrand) {
 	glPushMatrix();
 
 	glTranslatef(0, ground, 0);
@@ -157,19 +209,22 @@ void tree() {
 	glEnd();
 	// now some branches?
 	// how should I do this?
+	// I decided recursion is the best way
 	struct point base[4];
 	for(i = 0; i < 4; i++) {
 		base[i].x = Sin(i*60);
 		base[i].y = 10;
 		base[i].z = Cos(i*60);
 	}
-	branch(base, 5, 1, 2, 2, 8);
+	// start one side of the tree
+	branch(base, 5, 1*firstrand, 2, 2, 4);
 	for(i = 3; i < 7; i++) {
 		base[i%4].x = Sin(i*60);
 		base[i%4].y = 10;
 		base[i%4].z = Cos(i*60);
 	}
-	branch(base, 5, 0, -1, -1.5, 8);
+	// start the other side of the tree
+	branch(base, 5, 4*firstrand, -1, -1.5, 4);
 
 	// lines
 	Color(0, 0, 0);
@@ -188,7 +243,10 @@ void tree() {
 	}
 	glEnd();
 	*/
-	
+	// doesn't matter which tree we are drawing
+	// if we drew a tree no more trees can possibly
+	// be the main tree so set to 0
+	//maintree = 0;
 	glPopMatrix();
 }
 
@@ -198,6 +256,116 @@ static void Vertexflat(double thet, double height) {
 
 static void Vertex(double thet, double dis) {
 	glVertex3f(Sin(thet)*Cos(dis), Sin(dis), Cos(thet)*Cos(dis));
+}
+
+static void icosahedron1(float x,float y,float z,float s,float th) {
+   //  Vertex index list
+   const int N=60;
+   const unsigned char index[] =
+      {
+       2, 1, 0,    3, 2, 0,    4, 3, 0,    5, 4, 0,    1, 5, 0,
+      11, 6, 7,   11, 7, 8,   11, 8, 9,   11, 9,10,   11,10, 6,
+       1, 2, 6,    2, 3, 7,    3, 4, 8,    4, 5, 9,    5, 1,10,
+       2, 7, 6,    3, 8, 7,    4, 9, 8,    5,10, 9,    1, 6,10,
+      };
+   //  Vertex coordinates
+   const float xyz[] =
+      {
+       0.000, 0.000, 1.000,
+       0.894, 0.000, 0.447,
+       0.276, 0.851, 0.447,
+      -0.724, 0.526, 0.447,
+      -0.724,-0.526, 0.447,
+       0.276,-0.851, 0.447,
+       0.724, 0.526,-0.447,
+      -0.276, 0.851,-0.447,
+      -0.894, 0.000,-0.447,
+      -0.276,-0.851,-0.447,
+       0.724,-0.526,-0.447,
+       0.000, 0.000,-1.000
+      };
+   //  Vertex colors
+   // except, I want different colors bc trees so I'll be changing this
+   
+   float rgb[] =
+      {
+      0.0,1.0,0.2,
+      0.0,1.0,0.2,
+      0.0,1.0,0.2,
+      0.0,1.0,0.2,
+      0.0,1.0,0.2,
+      0.0,1.0,0.2,
+      0.0,1.0,0.2,
+      0.0,1.0,0.2,
+      0.0,1.0,0.2,
+      0.0,1.0,0.2,
+      0.0,1.0,0.2,
+      0.0,1.0,0.2,
+      };
+   float mainrgb[] =
+      {
+      1.0,0.2,0.2,
+      1.0,0.2,0.2,
+      1.0,0.2,0.2,
+      1.0,0.2,0.2,
+      1.0,0.2,0.2,
+      1.0,0.2,0.2,
+      1.0,0.2,0.2,
+      1.0,0.2,0.2,
+      1.0,0.2,0.2,
+      1.0,0.2,0.2,
+      1.0,0.2,0.2,
+      1.0,0.2,0.2,
+      };
+
+   int i;
+   for(i = 0; i < 36; i++) {
+   	rgb[i] -= randoms[(int)(i*x)%100]/100;
+   	mainrgb[i] -= randoms[(int)(i*x)%100]/100;
+   }
+
+  	const float black[] =
+      {
+      0.0,0.0,0.0,
+      0.0,0.0,0.0,
+      0.0,0.0,0.0,
+      0.0,0.0,0.0,
+      0.0,0.0,0.0,
+      0.0,0.0,0.0,
+      0.0,0.0,0.0,
+      0.0,0.0,0.0,
+      0.0,0.0,0.0,
+      0.0,0.0,0.0,
+      0.0,0.0,0.0,
+      0.0,0.0,0.0,
+      };
+   //  Define vertexes
+   glDisable(GL_CULL_FACE);
+   glVertexPointer(3,GL_FLOAT,0,xyz);
+   glEnableClientState(GL_VERTEX_ARRAY);
+   //  Define colors for each vertex
+   if(maintree == 1)
+   	glColorPointer(3,GL_FLOAT,0,mainrgb);
+   else
+   	glColorPointer(3,GL_FLOAT,0,rgb);
+   glEnableClientState(GL_COLOR_ARRAY);
+   //  Draw icosahedron
+   glPushMatrix();
+   glTranslatef(x,y,z);
+   glRotatef(th,1,0,0);
+   glScalef(s,s,s);
+   glDrawElements(GL_TRIANGLES,N,GL_UNSIGNED_BYTE,index);
+   //  draw some linnnzzzz
+   glLineWidth(1);
+   glColorPointer(3,GL_FLOAT,0,black);
+   glEnableClientState(GL_COLOR_ARRAY);
+   glDrawElements(GL_LINE_STRIP,N,GL_UNSIGNED_BYTE,index);
+   glEnable(GL_CULL_FACE);
+   glPopMatrix();
+   //  Disable vertex array
+   glDisableClientState(GL_VERTEX_ARRAY);
+   //  Disable color array
+   glDisableClientState(GL_COLOR_ARRAY);
 }
 
 //-----------------------------
@@ -228,10 +396,10 @@ void display() {
 	// remember to also change these points
 	Color(15, 86, 7);
 	glBegin(GL_QUADS);
-	glVertex3f(-10, ground, -10);
-	glVertex3f(-10, ground, 10);
-	glVertex3f(10, ground, 10);
-	glVertex3f(10, ground, -10);
+	glVertex3f(-50, ground, -50);
+	glVertex3f(-50, ground, 50);
+	glVertex3f(50, ground, 50);
+	glVertex3f(50, ground, -50);
 	glEnd();
 
 	// I want a fence, for, idk, protect my property?
@@ -243,7 +411,150 @@ void display() {
 	// but whatever, makes it much more dramatic and cool
 	// so uh, finally, the main subject of this composition
 	// a tree
-	tree();
+	maintree = 1;
+	int first = 1;
+	tree(first);
+	maintree = 0;
+	
+	// trees along the diagonal
+	first++;
+	glPushMatrix();
+	glTranslatef(10+randoms[first]/5, 0, 10+randoms[first*2]/5);
+	glScalef(.5+randoms[first]/100, .5+randoms[first]/100, .5+randoms[first]/100);
+	glRotatef(randoms[first]*3, 0, 1, 0);
+	tree(first);
+	glPopMatrix();
+
+	first++;
+	glPushMatrix();
+	glTranslatef(-(10+randoms[first]/5), 0, 10+randoms[first*2]/5);
+	glScalef(.5+randoms[first]/100, .5+randoms[first]/100, .5+randoms[first]/100);
+	glRotatef(randoms[first]*3, 0, 1, 0);
+	tree(first);
+	glPopMatrix();
+
+	first++;
+	glPushMatrix();
+	glTranslatef(-(10+randoms[first]/5), 0, -(10+randoms[first*2]/5));
+	glScalef(.5+randoms[first]/100, .5+randoms[first]/100, .5+randoms[first]/100);
+	glRotatef(randoms[first]*3, 0, 1, 0);
+	tree(first);
+	glPopMatrix();
+
+	first++;
+	glPushMatrix();
+	glTranslatef(10+randoms[first]/5, 0, -(10+randoms[first*2]/5));
+	glScalef(.5+randoms[first]/100, .5+randoms[first]/100, .5+randoms[first]/100);
+	glRotatef(randoms[first]*3, 0, 1, 0);
+	tree(first);
+	glPopMatrix();
+
+	// trees in one ish direction
+	first++;
+	glPushMatrix();
+	glTranslatef(10+randoms[first]/5, 0, -(randoms[first*2]/5));
+	glScalef(.5+randoms[first]/100, .5+randoms[first]/100, .5+randoms[first]/100);
+	glRotatef(randoms[first]*3, 0, 1, 0);
+	tree(first);
+	glPopMatrix();
+
+	first++;
+	glPushMatrix();
+	glTranslatef(-(10+randoms[first]/5), 0, randoms[first*2]/5);
+	glScalef(.5+randoms[first]/100, .5+randoms[first]/100, .5+randoms[first]/100);
+	glRotatef(randoms[first]*3, 0, 1, 0);
+	tree(first);
+	glPopMatrix();
+
+	first++;
+	glPushMatrix();
+	glTranslatef(randoms[first]/5, 0, -(10+randoms[first*2]/5));
+	glScalef(.5+randoms[first]/100, .5+randoms[first]/100, .5+randoms[first]/100);
+	glRotatef(randoms[first]*3, 0, 1, 0);
+	tree(first);
+	glPopMatrix();
+
+	first++;
+	glPushMatrix();
+	glTranslatef(-randoms[first]/5, 0, 10+randoms[first*2]/5);
+	glScalef(.5+randoms[first]/100, .5+randoms[first]/100, .5+randoms[first]/100);
+	glRotatef(randoms[first]*3, 0, 1, 0);
+	tree(first);
+	glPopMatrix();
+
+	// same thing but further out
+	first++;
+	glPushMatrix();
+	glTranslatef(20+randoms[first]/5, 0, 20+randoms[first*2]/5);
+	glScalef(.5+randoms[first]/100, .5+randoms[first]/100, .5+randoms[first]/100);
+	glRotatef(randoms[first]*3, 0, 1, 0);
+	tree(first);
+	glPopMatrix();
+
+	first++;
+	glPushMatrix();
+	glTranslatef(-(20+randoms[first]/5), 0, 20+randoms[first*2]/5);
+	glScalef(.5+randoms[first]/100, .5+randoms[first]/100, .5+randoms[first]/100);
+	glRotatef(randoms[first]*3, 0, 1, 0);
+	tree(first);
+	glPopMatrix();
+
+	first++;
+	glPushMatrix();
+	glTranslatef(-(20+randoms[first]/5), 0, -(20+randoms[first*2]/5));
+	glScalef(.5+randoms[first]/100, .5+randoms[first]/100, .5+randoms[first]/100);
+	glRotatef(randoms[first]*3, 0, 1, 0);
+	tree(first);
+	glPopMatrix();
+
+	first++;
+	glPushMatrix();
+	glTranslatef(20+randoms[first]/5, 0, -(20+randoms[first*2]/5));
+	glScalef(.5+randoms[first]/100, .5+randoms[first]/100, .5+randoms[first]/100);
+	glRotatef(randoms[first]*3, 0, 1, 0);
+	tree(first);
+	glPopMatrix();
+
+	// trees in one ish direction
+	first++;
+	glPushMatrix();
+	glTranslatef(20+randoms[first]/5, 0, (randoms[first*2]/5));
+	glScalef(.5+randoms[first]/100, .5+randoms[first]/100, .5+randoms[first]/100);
+	glRotatef(randoms[first]*3, 0, 1, 0);
+	tree(first);
+	glPopMatrix();
+
+	first++;
+	glPushMatrix();
+	glTranslatef(-(20+randoms[first]/5), 0, -randoms[first*2]/5);
+	glScalef(.5+randoms[first]/100, .5+randoms[first]/100, .5+randoms[first]/100);
+	glRotatef(randoms[first]*3, 0, 1, 0);
+	tree(first);
+	glPopMatrix();
+
+	first++;
+	glPushMatrix();
+	glTranslatef(-randoms[first]/5, 0, -(20+randoms[first*2]/5));
+	glScalef(.5+randoms[first]/100, .5+randoms[first]/100, .5+randoms[first]/100);
+	glRotatef(randoms[first]*3, 0, 1, 0);
+	tree(first);
+	glPopMatrix();
+
+	first++;
+	glPushMatrix();
+	glTranslatef(randoms[first]/5, 0, 20+randoms[first*2]/5);
+	glScalef(.5+randoms[first]/100, .5+randoms[first]/100, .5+randoms[first]/100);
+	glRotatef(randoms[first]*3, 0, 1, 0);
+	tree(first);
+	glPopMatrix();
+
+	// Display keys
+	glWindowPos2i(5, 5);
+	Print("Arrow Keys: Change view");
+	glWindowPos2i(5, 25);
+	Print("Pageup, Pagedwn: zoom in/out");
+	glWindowPos2i(5, 45);
+	Print("Space: randomize trees");
 
 	ErrCheck("display");
 	glFlush();
@@ -391,10 +702,10 @@ struct grass_pos {
 	double y;
 	int rotation;
 };
-int grasscount = 500;
+int grasscount = 900;
 // won't let you modify at scope so
 // remember to make this same as grasscount
-struct grass_pos grasses[500];
+struct grass_pos grasses[900];
 void save_grass() {
 	int i;
 	for(i = 0; i < grasscount; i++) {
@@ -472,10 +783,10 @@ void special(int key, int x, int y) {
 		ph -= 5;
 	//  PageUp key - increase dim
 	else if (key == GLUT_KEY_PAGE_UP) 
-		dim += 0.1;
+		dim += 1;
 	//  PageDown key - decrease dim
 	else if (key == GLUT_KEY_PAGE_DOWN && dim>1)
-		dim -= 0.1;
+		dim -= 1;
 	th %= 360;
 	ph %= 360;
 	Project();
@@ -500,6 +811,18 @@ void key(unsigned char ch, int x, int y) {
 	// exit on esc
 	if(ch==27)
 		exit(0);
+	// got tired of having to exit and rerun
+	// to see new sets of random trees
+	// so, made a space key that redoes
+	// the random array which is what all the
+	// randoms are based on
+	if(ch==' ') {
+		int i;
+		for(i = 0; i < 50; i++) {
+			randoms[i] = rand()%100;
+			//printf("%f,", randoms[i]);
+		}
+	}
 	glutPostRedisplay();
 }
 
@@ -819,6 +1142,7 @@ int main(int argc, char* argv[]) {
 	int i;
 	for(i = 0; i < 50; i++) {
 		randoms[i] = rand()%100;
+		//printf("%f,", randoms[i]);
 	}
 	// initialize GLUT
 	glutInit(&argc, argv);
