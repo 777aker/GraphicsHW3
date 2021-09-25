@@ -394,6 +394,7 @@ void display() {
 	// draw, the grouuunndddd
 	// also, if you change the starting dim
 	// remember to also change these points
+	glDisable(GL_CULL_FACE);
 	Color(15, 86, 7);
 	glBegin(GL_QUADS);
 	glVertex3f(-50, ground, -50);
@@ -401,6 +402,7 @@ void display() {
 	glVertex3f(50, ground, 50);
 	glVertex3f(50, ground, -50);
 	glEnd();
+	glEnable(GL_CULL_FACE);
 
 	// I want a fence, for, idk, protect my property?
 	// from the nothingness?

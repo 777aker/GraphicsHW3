@@ -1,1 +1,30 @@
 hw3: 3D objects
+
+Kelley Kelley
+CSCI 5229 Fall 2021
+
+So, I made a ground for everything to go on.
+It's a quad.
+I made some grass.
+They are randomly places quads and triangles.
+Made a nice picket fence.
+It's a lot of rectangles.
+Then, I was done with decorations and wanted to have trees.
+Except I wanted the trees to be random.
+This usually wouldn't be that complicated
+but everytime glut calls display it would
+randomize everything again. Which means the trees
+are a very excessive hash-psuedo-random that
+remains consistent across redisplays.
+But you can still randomize them all with space.
+Also means you could add animation to this 
+(technically the grass is animated and wiggles)
+and the trees will remain the same.
+I also added black lines around all the edges of
+everything because otherwise no lighting looks dumb
+
+Time Spent: 14 hours
+Key Bindings:
+Arrow keys: move display around
+Pageup/Pagedwn: zoom in/out
+Space: rerandomize everything
